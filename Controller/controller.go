@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	network "k8s.io/kubernetes/pkg/apis/networking"
@@ -60,16 +60,16 @@ func (c *controller) processItem() bool {
 	if shutdown{
 		return false
 	}
-
+	defer c.queue.Forget(item) // forget the item once it is processed
 	key, err := cache.MetaNamespaceKeyFunc(item)
 	if err!=nil{
 		fmt.Println("Error getting key from cache:", err)
 	}
-	ns, name, err := cache.SplitMetaNamespaceKey(key)
+	ns, name, err := cache.SplitMetaNamespaceKey(key) // name here is the name of the deployment object
 	if err!=nil{
 		fmt.Println("Error getting namespace, name from key:", err)
 	}
-	err = c.syncDeployment() // things we want to once the deployment is created
+	err = c.syncDeployment(ns,name) // things we want to once the deployment is created
 	if err!=nil{
 		//re try
 		fmt.Println("Error syncing deploymemt:", err)
@@ -82,10 +82,25 @@ func (c *controller) syncDeployment(ns,name string) error{
 	// create network policy
 	//np:= network.NetworkPolicy{}
 
-
+	dep, err:= c.lister.Deployments(ns).Get(name)
+	labels := getPodLabels(dep)
 	//create service
-	svc := corev1.Service{}
-	_, err := c.clientset.CoreV1().Services(ns).Create(context.Background(),&svc,metav1.CreateOptions{})
+	// we will have to modify this to make the port dynamic based on the deployment
+	svc := corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dep.Name,
+			Namespace: ns,
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+					{Name: "http",
+					Port: 80,
+			},
+		},
+		 Selector: labels,
+		},
+	}
+	_, err = c.clientset.CoreV1().Services(ns).Create(context.Background(),&svc,metav1.CreateOptions{})
 	if err!=nil{
 		fmt.Println("creating service error:", err)
 	} 
@@ -97,4 +112,8 @@ func (c *controller) handleAdd(obj interface{}) {
 }
 func (c *controller) handleDelete(obj interface{}) {
 	c.queue.Add(obj)
+}
+// This function gets the labels from the deployment object which then can be used as selectors in other k8s objects such as service
+func getPodLabels(dep *appsv1.Deployment)map[string]string{
+	return dep.Spec.Template.Labels
 }
