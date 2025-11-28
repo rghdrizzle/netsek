@@ -4,16 +4,18 @@ import (
 	"context"
 	"fmt"
 	"time"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	network "k8s.io/kubernetes/pkg/apis/networking"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appinformer "k8s.io/client-go/informers/apps/v1"
 	"k8s.io/client-go/kubernetes"
 	applisters "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	network "k8s.io/kubernetes/pkg/apis/networking"
 )
 
 type controller struct {
@@ -78,9 +80,13 @@ func (c *controller) processItem() bool {
 
 	return true
 }
-func (c *controller) syncDeployment(ns,name string) error{
+func (c *controller) syncDeployment(ns string,name string) error{
 	// create network policy
-	//np:= network.NetworkPolicy{}
+	err := c.createNetworkPolicy(ns,name)
+	if err!=nil{
+		fmt.Println("Error creating network polciy:",err)
+		return err
+	}
 
 	dep, err:= c.lister.Deployments(ns).Get(name)
 	labels := getPodLabels(dep)
@@ -104,6 +110,33 @@ func (c *controller) syncDeployment(ns,name string) error{
 	if err!=nil{
 		fmt.Println("creating service error:", err)
 	} 
+	return nil
+}
+// Creates network policy for the deployment which blocks all ingress and egress
+func (c *controller)createNetworkPolicy(ns string,name string) error{
+	dep, err:= c.lister.Deployments(ns).Get(name)
+	labels := getPodLabels(dep)
+	np:= v1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dep.Name,
+			Namespace: ns,
+		},
+		Spec: v1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: labels,
+			},
+			Ingress: []v1.NetworkPolicyIngressRule{
+
+			},
+			Egress: []v1.NetworkPolicyEgressRule{
+				
+			},
+		},
+	}
+	_,err= c.clientset.NetworkingV1().NetworkPolicies(ns).Create(context.Background(),&np,metav1.CreateOptions{})
+	if err!=nil{
+		return err
+	}
 	return nil
 }
 
