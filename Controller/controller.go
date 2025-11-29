@@ -15,7 +15,7 @@ import (
 	applisters "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	network "k8s.io/kubernetes/pkg/apis/networking"
+	//network "k8s.io/kubernetes/pkg/apis/networking"
 )
 
 type controller struct {
@@ -129,7 +129,7 @@ func (c *controller)createNetworkPolicy(ns string,name string) error{
 
 			},
 			Egress: []v1.NetworkPolicyEgressRule{
-				
+
 			},
 		},
 	}
