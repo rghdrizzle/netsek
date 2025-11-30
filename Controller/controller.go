@@ -99,8 +99,9 @@ func (c *controller) processItem() bool {
 	return true
 }
 func (c *controller) syncDeployment(ns string,name string) error{
-	// In production we have to create annotations like owner reference and what created it so we can delete the objects created only by the controller and not any other objects created by the user in case of the object having same labels
-
+	// TODO: In production we have to create annotations or owner reference and what created it so we can delete the objects created only by the controller and not any other objects created by the user in case of the object having same labels
+	// TODO: if someone delets the objects then it is the responsibility of the controller to create them again, in other words it must maintain a state and make sure the that the resources are in the current state. We will have to listen to these objects as well to manage it
+	
 	// create network policy
 	err := c.createNetworkPolicy(ns,name)
 	if err!=nil{
