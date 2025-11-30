@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
@@ -71,6 +71,24 @@ func (c *controller) processItem() bool {
 	if err!=nil{
 		fmt.Println("Error getting namespace, name from key:", err)
 	}
+	// check if the object has been deleted from the cluster
+	_, err = c.clientset.AppsV1().Deployments(ns).Get(context.Background(),name,metav1.GetOptions{})
+	if apierrors.IsNotFound(err){
+		fmt.Printf("Deployment %s not found; Handling delete event for deployment",name)
+		// delete service
+		err := c.clientset.CoreV1().Services(ns).Delete(context.Background(),name,metav1.DeleteOptions{})
+		if err!=nil{
+			fmt.Println("Error deleting service for deployment:" ,err)
+			return false
+		}
+		// delete network policy
+		err = c.clientset.NetworkingV1().NetworkPolicies(ns).Delete(context.Background(),name,metav1.DeleteOptions{})
+		if err !=nil{
+			fmt.Println("Error deleting network policy for deployment:", err)
+			return false
+		}
+		return true
+	}
 	err = c.syncDeployment(ns,name) // things we want to once the deployment is created
 	if err!=nil{
 		//re try
@@ -81,6 +99,8 @@ func (c *controller) processItem() bool {
 	return true
 }
 func (c *controller) syncDeployment(ns string,name string) error{
+	// In production we have to create annotations like owner reference and what created it so we can delete the objects created only by the controller and not any other objects created by the user in case of the object having same labels
+
 	// create network policy
 	err := c.createNetworkPolicy(ns,name)
 	if err!=nil{
@@ -139,7 +159,7 @@ func (c *controller)createNetworkPolicy(ns string,name string) error{
 	}
 	return nil
 }
-
+// Add the object to the queue to further process the object and perform business logic
 func (c *controller) handleAdd(obj interface{}) {
 	c.queue.Add(obj)
 }
