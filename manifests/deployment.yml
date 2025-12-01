@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: netsek
+  name: netsek
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: netsek
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: netsek
+    spec:
+      containers:
+      - image: rghdrizzle/netsek:latest
+        name: netsek
+        resources: {}
+      serviceAccountName: netsek-sa
+status: {}
